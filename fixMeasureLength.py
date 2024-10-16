@@ -1,5 +1,7 @@
 import xml.etree.ElementTree as ET
 import os
+import tkinter as tk
+from tkinter import filedialog
 
 def create_rest_element(duration_value, measure):
     rest_element = ET.Element("note")
@@ -16,7 +18,14 @@ def create_rest_element(duration_value, measure):
     rest_element.append(duration_element)
     
     # 找出比 duration_value 小的最大時值單位
-    max_duration = max(d for d in [0.0625, 0.25, 0.125, 0.5] if d <= duration_value)
+    durations = [d for d in [0.0625, 0.25, 0.125, 0.5] if d <= duration_value]
+    
+    # 如果沒有符合條件的時值單位，則跳過此小節的處理
+    if not durations:
+        print(f"跳過處理：duration_value ({duration_value}) 小於最小音符時值，跳過當前小節。")
+        return
+
+    max_duration = max(durations)
 
     # 遞歸處理
     if duration_value != max_duration:
@@ -37,9 +46,24 @@ def create_rest_element(duration_value, measure):
     measure.append(rest_element)
 
 def get_note_value(note_elem, divisions_value):
+    # 如果音符包含 <chord />，則跳過時值累計
+    if note_elem.find("./chord") is not None:
+        print("跳過和弦音符的時值計算。")
+        return 0  # 不累計和弦音符的時值
+
     duration_elem = note_elem.find("./duration")
     duration = float(duration_elem.text) / divisions_value / 4
     return duration
+
+def add_voice_to_note(note_elem, voice_number=2):
+    """給音符元素增加聲部"""
+    voice_elem = note_elem.find("./voice")
+    if voice_elem is None:
+        voice_elem = ET.Element("voice")
+        voice_elem.text = str(voice_number)
+        note_elem.append(voice_elem)
+    else:
+        voice_elem.text = str(voice_number)
 
 def fix_measure_lengths(xml_file_path):
     # 解析 musicxml 文件
@@ -87,19 +111,32 @@ def fix_measure_lengths(xml_file_path):
         # 單獨輸出一個換行
         print()
 
-    # 獲取舊文件名（不包含擴展名）
+    # 獲取舊文件的目錄和文件名
+    file_dir = os.path.dirname(xml_file_path)  # 輸入文件的目錄
     file_name, file_extension = os.path.splitext(os.path.basename(xml_file_path))
 
     # 新文件名
     new_file_name = file_name + "_fixed" + file_extension
+    new_file_path = os.path.join(file_dir, new_file_name)  # 新文件的完整路徑
 
     # 將修復後的 musicxml 寫入新文件
-    tree.write(new_file_name)
+    tree.write(new_file_path)
 
-    print(f"處理完成，修復了 {fixed_measures_count} 個小節。新文件保存為 {new_file_name}。")
+    print(f"處理完成，修復了 {fixed_measures_count} 個小節。新文件保存為 {new_file_path}。")
 
-# 請求用戶輸入目標 XML 文件的路徑
-xml_file_path = input("請輸入目標 XML 文件的路徑：")
+# 文件選擇 GUI
+def select_file():
+    root = tk.Tk()
+    root.withdraw()  # 隱藏主窗口
+    file_path = filedialog.askopenfilename(
+        title="選擇目標 XML 文件",
+        filetypes=[("XML files", "*.xml *.musicxml")]
+    )
+    return file_path
+
+# 使用範例
+xml_file_path = select_file()
+#input("請輸入目標 XML 文件的路徑：")
 
 # 使用範例
 fix_measure_lengths(xml_file_path)
